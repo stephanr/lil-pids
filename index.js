@@ -7,12 +7,15 @@ var readFile = require('read-file-live')
 var respawn = require('respawn')
 var chalk = require('chalk')
 var bashParse = require('shell-quote').parse
+var dateFormat = require('dateformat')
 
 var BIN_SH = process.platform === 'android' ? '/system/bin/sh' : '/bin/sh'
 var CMD_EXE = process.env.comspec || 'cmd.exe'
 
 var colors = ['red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'gray']
 var currentColor = 0
+var datePattern = process.env.LIL_PIDS_FMT || 'HH:MM:ss.l'
+var reloadDelay = parseInt(process.env.LIL_PIDS_DELAY) || 1000;
 
 var servicesFile = process.argv[2]
 var pidsFile = process.argv[3]
@@ -22,11 +25,11 @@ if (!servicesFile) {
   process.exit(1)
 }
 
-var padding = ['', ' ', '  ', '   ', '    ']
 var services = []
 var monitors = {}
+var reloadTimeout
 
-readFile(servicesFile, update)
+readFile(servicesFile, updateDelayed)
 
 function writePids (cb) {
   if (!pidsFile) return
@@ -39,10 +42,19 @@ function writePids (cb) {
 
   var lines = cmds.map(function (cmd) {
     if (!monitors[cmd].pid) return
-    return prefix(monitors[cmd].pid) + cmd + '\n'
+    return monitors[cmd].pid + ' ' + cmd + '\n'
   })
 
   fs.writeFile(pidsFile, lines.join(''), cb || noop)
+}
+
+function updateDelayed (buf) {
+  if (reloadTimeout){
+    clearTimeout(reloadTimeout)
+  }
+  reloadTimeout = setTimeout(() => {
+    update(buf)
+  }, reloadDelay)
 }
 
 function update (buf) {
@@ -77,27 +89,27 @@ function start (cmd) {
   m.start()
 
   function onstdout (message) {
-    onlog('(out)', message)
+    onlog('OUT', message)
   }
 
   function onstderr (message) {
-    onlog('(err)', message)
+    onlog('ERR', message)
   }
 
   function onspawn () {
-    console.log(color(prefix(m.pid) + '!!!!! SPAWN ' + cmd))
+    console.log(color(prefix(m.pid, 'SPAWN') + '!!!!! start ' + cmd))
     writePids()
   }
 
   function onexit (code) {
-    console.log(color(prefix(m.pid) + '!!!!! EXIT(' + code + ') ' + cmd))
+    console.log(color(prefix(m.pid, 'EXIT') + '!!!!! exit(' + code + ') ' + cmd))
     writePids()
   }
 
   function onlog (type, message) {
     var ln = message.toString().split('\n')
     if (ln[ln.length - 1] === '') ln.pop()
-    for (var i = 0; i < ln.length; i++) ln[i] = prefix(m.pid) + type + ' ' + ln[i]
+    for (var i = 0; i < ln.length; i++) ln[i] = prefix(m.pid, type) + ln[i]
     console.log(color(ln.join('\n')))
   }
 
@@ -117,9 +129,9 @@ function parse (buf) {
     })
 }
 
-function prefix (pid) {
+function prefix (pid, type) {
   var spid = pid.toString()
-  return spid + padding[5 - spid.length] + ': '
+  return dateFormat(datePattern) + ' ' + '     '.substr(spid.length) + spid + ' [' + type + ']' + '     '.substr(type.length) + ' '
 }
 
 function spawn (cmd) {
