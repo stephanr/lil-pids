@@ -6,8 +6,6 @@ Dead simple process manager with few features
 npm install -g lil-pids
 ```
 
-![omg](https://media.giphy.com/media/Aff4ryYiacUO4/giphy.gif)
-
 First create a file with the commands you wanna have running
 
 ```
@@ -25,7 +23,9 @@ lil-pids ./services
 It'll watch the file so every time you update it, old processes
 no longer referenced from the file will be shutdown and any new ones will be spawned.
 
-lil-pids will forward all stdout, stderr to its own stdout, stderr prefixed with the process id.
+Reloading the file is delayed to avoid problems that occur when the file is first deleted and then rewritten.
+
+lil-pids will forward all stdout, stderr to its own stdout prefixed with date/time, type (out/err) and the process id.
 
 It will also tell you when a command has been spawned, exited and finally it will restart processes
 when the crash/end.
@@ -49,6 +49,10 @@ That's it!
 * Cat the pids file and use `kill` to restart a running process. Use `ps` / `top` to check how something is running.
 
 * Add `#` in front of a service to disable it temporarily.
+
+* The reload delay of the service file can be adjusted with the environment variable `LIL_PIDS_DELAY`.
+
+* The date format of the output can also be adjusted by the environment variable `LIL_PIDS_FMT`. 
 
 ## Start on server boot
 
